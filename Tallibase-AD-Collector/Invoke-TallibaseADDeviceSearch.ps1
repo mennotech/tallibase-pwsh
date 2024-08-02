@@ -1,13 +1,17 @@
 #Requires -Version 7.0
 
-##TODO get configuration for JSON file and validate
-
-
+##TODO validate JSON
 $script:logfile = "$PSScriptRoot\Invoke-TallibaseDeviceSearch.log"
 $script:debug = 3
 
 
-$Settings = Get-Content Settings.json | ConvertFrom-JSON 
+try { 
+    $Settings = Get-Content Settings.json | ConvertFrom-JSON 
+}
+catch {
+    Write-Host "Failed to load Settings.json make sure it is a valid JSON file. Exiting"
+    Return 1
+}
 
 if (!$Settings) {
     return "Failed to load JSON settings from Settings.txt, please rename Settings.Example.json to Settings.json "
@@ -24,12 +28,16 @@ $EncodedCreds = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.G
 $script:headers = @{ Authorization = "Basic $EncodedCreds"; 'Content-Type' = "application/json" };
 
 
+#Run a simple test
 if ($Settings.RESTTest) {
-
-    $TestDevice = @{ 'title' = @{ 'value' = 'NB-JEN' }; 'type' = 'device'; 'field_serial_number' = @{'value' = '1234'}} | ConvertTo-JSON
-    $device = Invoke-RestMethod -Method POST -Uri "$SiteURL/node?_format=json" -Body $TestDevice -Headers $Headers
+    if ($script:debug -le 5) { $script:debug = 6}
+    Write-Log "Running simple REST Test with $SiteURL"
+    $TestDevice = @{ 'title' = @{ 'value' = 'PC-NAME' }; 'type' = 'device'; 'field_serial_number' = @{'value' = '1234567890'}} | ConvertTo-JSON
+    $Device = Invoke-RestMethod -Method POST -Uri "$SiteURL/node?_format=json" -Body $TestDevice -Headers $Headers
+    $Device
     $Devices = Invoke-RestMethod -Uri "$SiteURL/views/devices?_format=json" -Headers $headers
     $Devices | Format-Table
+    return
 }
 
 
