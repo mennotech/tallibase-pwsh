@@ -59,7 +59,7 @@ function Init {
 }
 
 function Main {
-    
+    Write-Log -Level 6 -Text "Starting Script $PSCommandPath"
     #Stop on all unhandled errors
     trap [Exception] {
         Write-Log -Level 1 -Text "Exception Error at Line $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())"   
@@ -94,6 +94,7 @@ function Main {
 
     Update-TallibaseDevices -Devices $AssetInfo
 
+    Write-Log -Level 6 -Text "Finished Script $PSCommandPath"
 }
 
 <#
