@@ -31,10 +31,9 @@ $script:headers = @{ Authorization = "Basic $EncodedCreds"; 'Content-Type' = "ap
 #Run a simple test
 if ($Settings.RESTTest) {
     if ($script:debug -le 5) { $script:debug = 6}
-    Write-Log "Running simple REST Test with $SiteURL"
+    Write-Host "Running simple REST Test with $SiteURL"
     $TestDevice = @{ 'title' = @{ 'value' = 'PC-NAME' }; 'type' = 'device'; 'field_serial_number' = @{'value' = '1234567890'}} | ConvertTo-JSON
-    $Device = Invoke-RestMethod -Method POST -Uri "$SiteURL/node?_format=json" -Body $TestDevice -Headers $Headers
-    $Device
+    $Result = Invoke-RestMethod -Method POST -Uri "$SiteURL/node?_format=json" -Body $TestDevice -Headers $Headers
     $Devices = Invoke-RestMethod -Uri "$SiteURL/views/devices?_format=json" -Headers $headers
     $Devices | Format-Table
     return
