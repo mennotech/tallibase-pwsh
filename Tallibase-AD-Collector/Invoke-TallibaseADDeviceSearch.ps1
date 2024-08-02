@@ -3,10 +3,20 @@ param (
     [bool]$RESTTest = $false
 )
 
+
 #Set logfile path and initial debug level
 $script:logfile = "$PSScriptRoot\log\$((Get-Date).ToString('yyyy-MM'))-Invoke-TallibaseDeviceSearch.log"
-$script:debug = 3
+$script:loglevel = 7
 
+#Log levels
+# 1 - Emergency
+# 2 - Alert
+# 3 - Critical
+# 4 - Error
+# 5 - Warning
+# 6 - Notice
+# 7 - Information
+# 8 - Debug
 
 function Init {
 
@@ -15,28 +25,29 @@ function Init {
         $script:settings = Get-Content "$PSScriptRoot\conf\settings.json" | ConvertFrom-JSON 
     }
     catch {
-        Write-Log "Failed to load $PSScriptRoot\conf\settings.json make sure it is a valid JSON file. Exiting"
+        Write-Log -Level 1 -Text "Failed to load $PSScriptRoot\conf\settings.json make sure it is a valid JSON file. Exiting"
         exit 1
     }
     if (!$script:settings) {
-        return "Failed to load JSON settings from $PSScriptRoot\conf\settings.json, please rename Settings.Example.json to Settings.json "
+        Write-Log -Level 1 -Text "Failed to load JSON settings from $PSScriptRoot\conf\settings.json, please rename Settings.Example.json to Settings.json "
+        exit 1
     }
 
     #Parse settings and apply to variables
     $script:SiteURL = $script:settings.server
-    if ($script:settings.debug) { $script:debug = $script:settings.debug}
+    if ($script:settings.loglevel) { $script:loglevel = $script:settings.loglevel}
 
     #Exit if password file doesn't exist
     if (!(Test-Path -Path "$PSScriptRoot\$($script:settings.encryptedpasswordfile)" )) {
-        Write-Log "Failed to find password file $PSScriptRoot\$($script:settings.encryptedpasswordfile)"
-        Write-Log "Please run Save-Password.ps1 to create"
+        Write-Log -Level 1 -Text  "Failed to find password file $PSScriptRoot\$($script:settings.encryptedpasswordfile)"
+        Write-Log -Level 1 -Text  "Please run Save-Password.ps1 to create"
         exit 2
     }
 
     #Read encrypted password
     $Username,$Password = Get-Content "$PSScriptRoot\$($script:settings.encryptedpasswordfile)"
     if (!($Username -AND $Password)) {
-        Write-Log "Failed to load username and password"
+        Write-Log -Level 1 -Text "Failed to load username and password"
         exit 3
     }
 
@@ -49,12 +60,12 @@ function Init {
 
 function Main {
     
-    #Stop on all errors and send an email
+    #Stop on all unhandled errors
     trap [Exception] {
-        Write-Log "Exception Error at Line $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())"   
+        Write-Log -Level 1 -Text "Exception Error at Line $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())"   
         $ErrorMessage = $_.Exception.Message -replace "`r|`n"," "
-        Write-Log "Fatal Error Message: $ErrorMessage"
-        return
+        Write-Log -Level 1 -Text "Fatal Error Message: $ErrorMessage"
+        exit 101
     }
 
     #Run Init function
@@ -91,23 +102,22 @@ function Main {
 #>
 function Invoke-RESTTest {
     
-        if ($script:debug -le 5) { $script:debug = 6}
-        Write-Log "Running simple REST Test with $($script:SiteURL)"
+        Write-Log -Level 6 -Text  "Running simple REST Test with $($script:SiteURL)"
         $ContentTypes = @('device_models','vendors','devices')
         
         foreach ($ContentType in $ContentTypes) {
             if (Test-Path "$PSScriptRoot\examples\$ContentType.json") {
-                Write-Log "Loading $PSScriptRoot\examples\$ContentType.json"
+                Write-Log -Level 7 -Text "Loading $PSScriptRoot\examples\$ContentType.json"
                 [array]$Resources = Get-Content "$PSScriptRoot\examples\$ContentType.json" | ConvertFrom-Json
             }
             foreach ($Resource in $Resources) {
                 #TODO check if the node already exists using the uuid
-                Write-Log "Creating new $ContentType : $($Resource | ConvertTo-Json -Compress -Depth 10)"
+                Write-Log -Level 6 -Text "Creating new $ContentType : $($Resource | ConvertTo-Json -Compress -Depth 10)"
                 try {
                     $null = Invoke-RestMethod -Method POST -Uri "$SiteURL/node?_format=json" -Body ($Resource | ConvertTo-Json -Depth 10) -Headers $Headers
                 }
                 catch {
-                    Write-Log "ERROR REST Method failed with StatusCode: $($_.Exception.Response.StatusCode.value__) $($_.Exception.Response.ReasonPhrase) - $($_.Exception.Response.StatusDescription)"
+                    Write-Log -Level 4 -Text "ERROR REST Method failed with StatusCode: $($_.Exception.Response.StatusCode.value__) $($_.Exception.Response.ReasonPhrase) - $($_.Exception.Response.StatusDescription)"
                 }
             }
         }
@@ -129,10 +139,10 @@ function Update-TallibaseDevices {
         if ($Device.SerialNumber -in $WebDevices.field_serial_number) {
             $WebDevice = $WebDevices | Where-Object field_serial_number -eq $Devices.SerialNumber
             if (($WebDevice).count -eq 1) {
-                $result = Update-TallibaseDevice -AssetInfo $Device -UUID $WebDevice
+                $null = Update-TallibaseDevice -AssetInfo $Device -UUID $WebDevice
             }
         } else {
-            $result = New-TallibaseDevice -AssetInfo $Device
+            $null = New-TallibaseDevice -AssetInfo $Device
         }
     }
 
@@ -173,7 +183,7 @@ function New-TallibaseDevice {
     Get-TallibaseFieldOptions
     
     if ($AssetInfo) {
-        Write-Log "Creating new TalliBase device $AssetInfo"
+        Write-Log -Level 6 -Text "Creating new TalliBase device $AssetInfo"
         
         $TalliBaseResource = [PSCustomObject]@{
             type = "device"
@@ -203,7 +213,7 @@ function Get-TalliBaseFieldID {
                 }
             }
             else {
-                Write-Log "Did not find $FieldName with value $Value, creating"
+                Write-Log -Level 6 -Text "Did not find $FieldName with value $Value, creating"
                 $TalliBaseResource = [PSCustomObject]@{
                     type = "device_model"
                     title = $Value
@@ -227,7 +237,7 @@ function Get-TalliBaseFieldID {
                 }
             }
             else {
-                Write-Log "Did not find $FieldName with value $Value, creating"
+                Write-Log -Level 6 -Text "Did not find $FieldName with value $Value, creating"
                 $TalliBaseResource = [PSCustomObject]@{
                     type = "vendor"
                     title = $Value
@@ -261,17 +271,17 @@ function Invoke-DrupalResource {
         try {
             $Body = ConvertTo-DrupalResource -Object $Body
             $Body = ConvertTo-Json -Compress -Depth 5 -InputObject $Body
-            Write-Log -Level 6 "POST body: $body"
+            Write-Log -Level 8 -Text "POST body: $body"
         }
         catch {
-            Write-Log "Get-DrupalResource: Failed to convert Body to JSON"
+            Write-Log -Level 3 -Text "Get-DrupalResource: Failed to convert Body to JSON"
             return $false
         }
     }
 
     #TODO write a caching function for calls to the same path
 
-    Write-Log -Level 6 "HTTP $Method $($script:SiteURL)/$Path`?_format=json"
+    Write-Log -Level 7 -Text "HTTP $Method $($script:SiteURL)/$Path`?_format=json"
     $Resource = Invoke-RestMethod `
         -Uri "$($script:SiteURL)/$Path`?_format=json" `
         -Headers $headers `
@@ -306,9 +316,11 @@ param(
   [string]$Text,
   [int]$Level
 )
-  $Time = get-date -Format "yyyy-MM-dd-hh-mm-ss"
-  if ($Level -le $script:debug) { Write-Host "$time[$Level]: $Text" }
-  "$time[$Level]: $Text" | Out-File -Append -FilePath $script:logfile -Encoding utf8
+    $Time = get-date -Format "yyyy-MM-dd-hh-mm-ss"
+    if ($Level -le $script:loglevel) {
+        Write-Host "$time[$Level]: $Text"
+        "$time[$Level]: $Text" | Out-File -Append -FilePath $script:logfile -Encoding utf8
+    }
 }
 
 function Get-SimplifiedDrupalObject {
@@ -348,12 +360,11 @@ function ConvertTo-DrupalResource {
 
 function Get-AssetInfo {
     param (
-        [string]$DeviceName = (Throw "No DeviceName provided for Get-AssetInfo"),
-		[bool]$Log = $true
+        [string]$DeviceName = (Throw "No DeviceName provided for Get-AssetInfo")
     )
 	
     try {
-		if ($Log) { Write-Log -Level 5 -Text "Starting CimSession Connecting to $DeviceName..." }
+		Write-Log -Level 8 -Text "Starting CimSession Connecting to $DeviceName..."
 		$DCOM = New-CimSessionOption -Protocol Dcom
 		$CimSession = New-CimSession -ComputerName $DeviceName -SessionOption $DCOM -ErrorAction SilentlyContinue
 		
@@ -380,7 +391,7 @@ function Get-AssetInfo {
 		
         
     } catch {
-        if ($Log) { Write-Log -Level 3 -Text  "Error executing PowerShell command: $_" }
+        Write-Log -Level 3 -Text "Error executing PowerShell command: $_"
         return $null
     }
 }

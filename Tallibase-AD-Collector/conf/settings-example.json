@@ -5,5 +5,6 @@
         "searchFilter" : "*"
     },
     "server" : "http://localhost:8080",
-    "encryptedpasswordfile" : "conf\\server-encrypted-password.txt"
+    "encryptedpasswordfile" : "conf\\server-encrypted-password.txt",
+    "loglevel" : 7
 }
