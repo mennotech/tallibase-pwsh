@@ -3,76 +3,67 @@ param (
     [bool]$RESTTest = $false
 )
 
-
+#Set logfile path and initial debug level
 $script:logfile = "$PSScriptRoot\log\$((Get-Date).ToString('yyyy-MM'))-Invoke-TallibaseDeviceSearch.log"
 $script:debug = 3
 
-#Load settings, TODO validate JSON for required configuration fields
-try { 
-    $Settings = Get-Content "$PSScriptRoot\conf\settings.json" | ConvertFrom-JSON 
-}
-catch {
-    Write-Host "Failed to load $PSScriptRoot\conf\settings.json make sure it is a valid JSON file. Exiting"
-    Return 1
-}
-if (!$Settings) {
-    return "Failed to load JSON settings from $PSScriptRoot\conf\settings.json, please rename Settings.Example.json to Settings.json "
-}
 
-#Parse settings and apply to variables
-$SiteURL = $Settings.server
-if ($Settings.debug) { $script:debug = $Settings.debug}
+function Init {
 
-#Exit if password file doesn't exist
-if (!(Test-Path -Path "$PSScriptRoot\$($Settings.encryptedpasswordfile)" )) {
-    Write-Host "Failed to find password file $PSScriptRoot\$($Settings.encryptedpasswordfile)"
-    Write-Host "Please run Save-Password.ps1 to create"
-    return 2
-}
-
-#Read encrypted password
-$Username,$Password = Get-Content "$PSScriptRoot\$($Settings.encryptedpasswordfile)"
-if (!($Username -AND $Password)) {
-    Write-Host "Failed to load username and password"
-    return 3
-}
-
-#Create Authentication Headers
-$Password = $Password | ConvertTo-SecureString
-$Pair = "$($Username):$([System.Net.NetworkCredential]::new('', $Password).Password)"
-$EncodedCreds = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($pair))
-$script:headers = @{ Authorization = "Basic $EncodedCreds"; 'Content-Type' = "application/json" };
-
-
-#Run a simple test
-if ($RESTTest) {
-    if ($script:debug -le 5) { $script:debug = 6}
-    Write-Host "Running simple REST Test with $SiteURL"
-    $ContentTypes = @('device_models','vendors','devices')
-    
-    foreach ($ContentType in $ContentTypes) {
-        if (Test-Path "$PSScriptRoot\examples\$ContentType.json") {
-            Write-Host "Loading $PSScriptRoot\examples\$ContentType.json"
-            [array]$Resources = Get-Content "$PSScriptRoot\examples\$ContentType.json" | ConvertFrom-Json
-        }
-        foreach ($Resource in $Resources) {
-            #TODO check if the node already exists using the uuid
-            Write-Host "Creating new $ContentType : $($Resource | ConvertTo-Json -Compress -Depth 10)"
-            Invoke-RestMethod -Method POST -Uri "$SiteURL/node?_format=json" -Body ($Resource | ConvertTo-Json -Depth 10) -Headers $Headers
-        }
+    #Load settings, TODO validate JSON for required configuration fields
+    try { 
+        $Settings = Get-Content "$PSScriptRoot\conf\settings.json" | ConvertFrom-JSON 
+    }
+    catch {
+        Write-Log "Failed to load $PSScriptRoot\conf\settings.json make sure it is a valid JSON file. Exiting"
+        exit 1
+    }
+    if (!$Settings) {
+        return "Failed to load JSON settings from $PSScriptRoot\conf\settings.json, please rename Settings.Example.json to Settings.json "
     }
 
-    #Get list of devices
-    $Devices = Invoke-RestMethod -Uri "$SiteURL/views/devices?_format=json" -Headers $headers
-    #$Devices | Format-Table
-    return
+    #Parse settings and apply to variables
+    $script:SiteURL = $Settings.server
+    if ($Settings.debug) { $script:debug = $Settings.debug}
+
+    #Exit if password file doesn't exist
+    if (!(Test-Path -Path "$PSScriptRoot\$($Settings.encryptedpasswordfile)" )) {
+        Write-Log "Failed to find password file $PSScriptRoot\$($Settings.encryptedpasswordfile)"
+        Write-Log "Please run Save-Password.ps1 to create"
+        exit 2
+    }
+
+    #Read encrypted password
+    $Username,$Password = Get-Content "$PSScriptRoot\$($Settings.encryptedpasswordfile)"
+    if (!($Username -AND $Password)) {
+        Write-Log "Failed to load username and password"
+        exit 3
+    }
+
+    #Create Authentication Headers
+    $Password = $Password | ConvertTo-SecureString
+    $Pair = "$($Username):$([System.Net.NetworkCredential]::new('', $Password).Password)"
+    $EncodedCreds = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($pair))
+    $script:headers = @{ Authorization = "Basic $EncodedCreds"; 'Content-Type' = "application/json" };
 }
 
-
-
-
-
 function Main {
+    
+    #Stop on all errors and send an email
+    trap [Exception] {
+        Write-Log "Exception Error at Line $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())"   
+        $ErrorMessage = $_.Exception.Message -replace "`r|`n"," "
+        Write-Log "Fatal Error Message: $ErrorMessage"
+        return
+    }
+
+    #Run Init function
+    Init
+  
+    #Run Tests if specified end exit
+    if ($RESTTest) {
+        return Invoke-RESTTest
+    }
 
     Write-Log -Level 3 -Text "Searching for ADObjects in $($settings.devices.searchBase)"
     $DeviceADObjects = Get-ADObject -SearchBase $settings.devices.searchBase -Filter $settings.devices.searchFilter | Where-Object ObjectClass -eq 'computer'
@@ -94,6 +85,38 @@ function Main {
     Update-TallibaseDevices -Devices $AssetInfo
 
 }
+
+<#
+    Attempt to import the example data into the website
+#>
+function Invoke-RESTTest {
+    
+        if ($script:debug -le 5) { $script:debug = 6}
+        Write-Log "Running simple REST Test with $($script:SiteURL)"
+        $ContentTypes = @('device_models','vendors','devices')
+        
+        foreach ($ContentType in $ContentTypes) {
+            if (Test-Path "$PSScriptRoot\examples\$ContentType.json") {
+                Write-Log "Loading $PSScriptRoot\examples\$ContentType.json"
+                [array]$Resources = Get-Content "$PSScriptRoot\examples\$ContentType.json" | ConvertFrom-Json
+            }
+            foreach ($Resource in $Resources) {
+                #TODO check if the node already exists using the uuid
+                Write-Log "Creating new $ContentType : $($Resource | ConvertTo-Json -Compress -Depth 10)"
+                try {
+                    $null = Invoke-RestMethod -Method POST -Uri "$SiteURL/node?_format=json" -Body ($Resource | ConvertTo-Json -Depth 10) -Headers $Headers
+                }
+                catch {
+                    Write-Log "ERROR REST Method failed with StatusCode: $($_.Exception.Response.StatusCode.value__) $($_.Exception.Response.ReasonPhrase) - $($_.Exception.Response.StatusDescription)"
+                }
+            }
+        }
+    
+        #Get list of devices
+        $Devices = Invoke-RestMethod -Uri "$($script:SiteURL)/views/devices?_format=json" -Headers $headers
+        Get-SimplifiedDrupalObject $Devices | Format-Table title, nid, uuid
+        return
+    }
 
 function Update-TallibaseDevices {
     Param(
@@ -248,9 +271,9 @@ function Invoke-DrupalResource {
 
     #TODO write a caching function for calls to the same path
 
-    Write-Log -Level 6 "HTTP $Method $SiteURL/$Path`?_format=json"
+    Write-Log -Level 6 "HTTP $Method $($script:SiteURL)/$Path`?_format=json"
     $Resource = Invoke-RestMethod `
-        -Uri "$SiteURL/$Path`?_format=json" `
+        -Uri "$($script:SiteURL)/$Path`?_format=json" `
         -Headers $headers `
         -Method $Method `
         -Body $Body
