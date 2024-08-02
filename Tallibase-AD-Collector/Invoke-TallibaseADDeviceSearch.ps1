@@ -76,23 +76,22 @@ function Main {
         return Invoke-RESTTest
     }
 
-    Write-Log -Level 3 -Text "Searching for ADObjects in $($script:settings.devices.searchBase)"
+    Write-Log -Level 6 -Text "Searching for ADObjects in $($script:settings.devices.searchBase)"
     $DeviceADObjects = Get-ADObject -SearchBase $script:settings.devices.searchBase -Filter $script:settings.devices.searchFilter | Where-Object ObjectClass -eq 'computer'
 
     if (!$DeviceADObjects) {
         return "No Objects found"
     }
-    Write-Log -Level 3 -Text "Pinging for online devices..."
+    Write-Log -Level 6 -Text "Pinging device list to see which are online devices..."
     $OnlineDevices = Test-ComputerConnections -ComputerNames $DeviceADObjects.Name
 
 
-    Write-Log -Level 3 -Text "Getting Asset Info..."
+    Write-Log -Level 6 -Text "Connecting to online devices to get asset info..."
     $AssetInfo = @()
     foreach ($Device in $OnlineDevices) {
         $AssetInfo += Get-AssetInfo -DeviceName $Device
     }
 
-    Write-Log -Level 3 -Text "Updating Tallibase Database..."    
     Update-TallibaseDevices -Devices $AssetInfo
 
 }
@@ -133,6 +132,8 @@ function Update-TallibaseDevices {
         $Devices
     )
     
+    Write-Log -Level 6 -Text "Updating Tallibase Database..."
+    
     $WebDevices = Invoke-DrupalResource -Path "views/devices"
 
     foreach ($Device in $Devices) {
@@ -147,18 +148,7 @@ function Update-TallibaseDevices {
     }
 
 }
-<#    	# Create a custom object with relevant information
-		$assetInfo = [PSCustomObject]@{
-			DeviceName = $DeviceName
-			Manufacturer = $computersystem.Manufacturer
-			Model = $computersystem.Model
-			SerialNumber = $bios.SerialNumber
-			BIOSVersion = $bios.SMBIOSBIOSVersion
-			SystemType = $computersystem.SystemType
-			NumberOfLogicalProcessors = $computersystem.NumberOfLogicalProcessors
-			TotalPhysicalMemory = $computersystem.TotalPhysicalMemory
-		}
-#>
+
 
 function Get-TallibaseFieldOptions {
     Param(
