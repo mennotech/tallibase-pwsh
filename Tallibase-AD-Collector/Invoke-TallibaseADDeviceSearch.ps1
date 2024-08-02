@@ -12,29 +12,29 @@ function Init {
 
     #Load settings, TODO validate JSON for required configuration fields
     try { 
-        $Settings = Get-Content "$PSScriptRoot\conf\settings.json" | ConvertFrom-JSON 
+        $script:settings = Get-Content "$PSScriptRoot\conf\settings.json" | ConvertFrom-JSON 
     }
     catch {
         Write-Log "Failed to load $PSScriptRoot\conf\settings.json make sure it is a valid JSON file. Exiting"
         exit 1
     }
-    if (!$Settings) {
+    if (!$script:settings) {
         return "Failed to load JSON settings from $PSScriptRoot\conf\settings.json, please rename Settings.Example.json to Settings.json "
     }
 
     #Parse settings and apply to variables
-    $script:SiteURL = $Settings.server
-    if ($Settings.debug) { $script:debug = $Settings.debug}
+    $script:SiteURL = $script:settings.server
+    if ($script:settings.debug) { $script:debug = $script:settings.debug}
 
     #Exit if password file doesn't exist
-    if (!(Test-Path -Path "$PSScriptRoot\$($Settings.encryptedpasswordfile)" )) {
-        Write-Log "Failed to find password file $PSScriptRoot\$($Settings.encryptedpasswordfile)"
+    if (!(Test-Path -Path "$PSScriptRoot\$($script:settings.encryptedpasswordfile)" )) {
+        Write-Log "Failed to find password file $PSScriptRoot\$($script:settings.encryptedpasswordfile)"
         Write-Log "Please run Save-Password.ps1 to create"
         exit 2
     }
 
     #Read encrypted password
-    $Username,$Password = Get-Content "$PSScriptRoot\$($Settings.encryptedpasswordfile)"
+    $Username,$Password = Get-Content "$PSScriptRoot\$($script:settings.encryptedpasswordfile)"
     if (!($Username -AND $Password)) {
         Write-Log "Failed to load username and password"
         exit 3
@@ -65,8 +65,8 @@ function Main {
         return Invoke-RESTTest
     }
 
-    Write-Log -Level 3 -Text "Searching for ADObjects in $($settings.devices.searchBase)"
-    $DeviceADObjects = Get-ADObject -SearchBase $settings.devices.searchBase -Filter $settings.devices.searchFilter | Where-Object ObjectClass -eq 'computer'
+    Write-Log -Level 3 -Text "Searching for ADObjects in $($script:settings.devices.searchBase)"
+    $DeviceADObjects = Get-ADObject -SearchBase $script:settings.devices.searchBase -Filter $script:settings.devices.searchFilter | Where-Object ObjectClass -eq 'computer'
 
     if (!$DeviceADObjects) {
         return "No Objects found"
