@@ -1,0 +1,9 @@
+{
+    "devices" : {
+        "enabledSearch" : true,
+        "searchBase" : "ou=Computers,ou=Domain Accounts,dc=domain,dc=internal",
+        "searchFilter" : "*"
+    },
+    "server" : "http://localhost:8080",
+    "RESTTest" : false
+}
