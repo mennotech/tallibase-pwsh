@@ -1,0 +1,19 @@
+[
+    {
+        "uuid": [
+            {
+                "value": "24b141ac-b823-4e43-927f-4dd6a24417c3"
+            }
+        ],
+        "type": [
+            {
+                "target_id": "device_model"
+            }
+        ],
+        "title": [
+            {
+                "value": "Fast 386"
+            }
+        ]
+    }
+]

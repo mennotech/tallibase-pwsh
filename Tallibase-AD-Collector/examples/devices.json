@@ -1,0 +1,76 @@
+[
+    {
+        "type": [
+            {
+                "target_id": "device"
+            }
+        ],
+        "title": [
+            {
+                "value": "TESTPC-1"
+            }
+        ],
+        "field_device_model": [
+            {
+                "target_type": "node",
+                "target_uuid": "24b141ac-b823-4e43-927f-4dd6a24417c3"
+            }
+        ],
+        "field_device_status": [
+            {
+                "target_type": "taxonomy_term",
+                "target_uuid": "e010ac3b-dd5e-49d8-aee8-bd95b6d6630d"
+            }
+        ],
+        "field_manufacturer": [
+            {
+                "target_id": 1,
+                "target_type": "node",
+                "target_uuid": "0f79c37b-e45b-41f9-87cc-3107e7d1fb9b",
+                "url": "\/node\/1"
+            }
+        ],
+        "field_serial_number": [
+            {
+                "value": "1234123"
+            }
+        ]
+    },
+    {
+        "type": [
+            {
+                "target_id": "device"
+            }
+        ],
+        "title": [
+            {
+                "value": "TESTPC-2"
+            }
+        ],
+        "field_device_model": [
+            {
+                "target_type": "node",
+                "target_uuid": "24b141ac-b823-4e43-927f-4dd6a24417c3"
+            }
+        ],
+        "field_device_status": [
+            {
+                "target_type": "taxonomy_term",
+                "target_uuid": "e010ac3b-dd5e-49d8-aee8-bd95b6d6630d"
+            }
+        ],
+        "field_manufacturer": [
+            {
+                "target_id": 1,
+                "target_type": "node",
+                "target_uuid": "0f79c37b-e45b-41f9-87cc-3107e7d1fb9b",
+                "url": "\/node\/1"
+            }
+        ],
+        "field_serial_number": [
+            {
+                "value": "1234123"
+            }
+        ]
+    }    
+]

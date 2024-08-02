@@ -1,0 +1,19 @@
+[
+    {
+        "uuid": [
+            {
+                "value": "0f79c37b-e45b-41f9-87cc-3107e7d1fb9b"
+            }
+        ],
+        "type": [
+            {
+                "target_id": "vendor"
+            }
+        ],
+        "title": [
+            {
+                "value": "PC Manufacturer"
+            }
+        ]
+    }
+]

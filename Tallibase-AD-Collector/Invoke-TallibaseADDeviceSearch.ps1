@@ -1,27 +1,43 @@
 #Requires -Version 7.0
+param (
+    [bool]$RESTTest = $false
+)
 
-##TODO validate JSON
-$script:logfile = "$PSScriptRoot\Invoke-TallibaseDeviceSearch.log"
+
+$script:logfile = "$PSScriptRoot\log\$((Get-Date).ToString('yyyy-MM'))-Invoke-TallibaseDeviceSearch.log"
 $script:debug = 3
 
-
+#Load settings, TODO validate JSON for required configuration fields
 try { 
-    $Settings = Get-Content Settings.json | ConvertFrom-JSON 
+    $Settings = Get-Content "$PSScriptRoot\conf\settings.json" | ConvertFrom-JSON 
 }
 catch {
-    Write-Host "Failed to load Settings.json make sure it is a valid JSON file. Exiting"
+    Write-Host "Failed to load $PSScriptRoot\conf\settings.json make sure it is a valid JSON file. Exiting"
     Return 1
 }
-
 if (!$Settings) {
-    return "Failed to load JSON settings from Settings.txt, please rename Settings.Example.json to Settings.json "
+    return "Failed to load JSON settings from $PSScriptRoot\conf\settings.json, please rename Settings.Example.json to Settings.json "
 }
 
+#Parse settings and apply to variables
 $SiteURL = $Settings.server
 if ($Settings.debug) { $script:debug = $Settings.debug}
 
-#Read encrypted password and then decode and convert to Base65String
-$Username,$Password = Get-Content "$PSScriptRoot\Encrypted-Password.txt"
+#Exit if password file doesn't exist
+if (!(Test-Path -Path "$PSScriptRoot\$($Settings.encryptedpasswordfile)" )) {
+    Write-Host "Failed to find password file $PSScriptRoot\$($Settings.encryptedpasswordfile)"
+    Write-Host "Please run Save-Password.ps1 to create"
+    return 2
+}
+
+#Read encrypted password
+$Username,$Password = Get-Content "$PSScriptRoot\$($Settings.encryptedpasswordfile)"
+if (!($Username -AND $Password)) {
+    Write-Host "Failed to load username and password"
+    return 3
+}
+
+#Create Authentication Headers
 $Password = $Password | ConvertTo-SecureString
 $Pair = "$($Username):$([System.Net.NetworkCredential]::new('', $Password).Password)"
 $EncodedCreds = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($pair))
@@ -29,13 +45,25 @@ $script:headers = @{ Authorization = "Basic $EncodedCreds"; 'Content-Type' = "ap
 
 
 #Run a simple test
-if ($Settings.RESTTest) {
+if ($RESTTest) {
     if ($script:debug -le 5) { $script:debug = 6}
     Write-Host "Running simple REST Test with $SiteURL"
-    $TestDevice = @{ 'title' = @{ 'value' = 'PC-NAME' }; 'type' = 'device'; 'field_serial_number' = @{'value' = '1234567890'}} | ConvertTo-JSON
-    $Result = Invoke-RestMethod -Method POST -Uri "$SiteURL/node?_format=json" -Body $TestDevice -Headers $Headers
+    $ContentTypes = @('device_models','vendors','devices')
+    
+    foreach ($ContentType in $ContentTypes) {
+        if (Test-Path "$PSScriptRoot\examples\$ContentType.json") {
+            Write-Host "Loading $PSScriptRoot\examples\$ContentType.json"
+            [array]$Resources = Get-Content "$PSScriptRoot\examples\$ContentType.json" | ConvertFrom-Json
+        }
+        foreach ($Resource in $Resources) {
+            Write-Host "Creating new $ContentType : $($Resource | ConvertTo-Json -Compress -Depth 10)"
+            Invoke-RestMethod -Method POST -Uri "$SiteURL/node?_format=json" -Body ($Resource | ConvertTo-Json -Depth 10) -Headers $Headers
+        }
+    }
+
+    #Get list of devices
     $Devices = Invoke-RestMethod -Uri "$SiteURL/views/devices?_format=json" -Headers $headers
-    $Devices | Format-Table
+    #$Devices | Format-Table
     return
 }
 
