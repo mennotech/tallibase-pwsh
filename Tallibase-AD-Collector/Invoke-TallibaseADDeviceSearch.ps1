@@ -56,6 +56,7 @@ if ($RESTTest) {
             [array]$Resources = Get-Content "$PSScriptRoot\examples\$ContentType.json" | ConvertFrom-Json
         }
         foreach ($Resource in $Resources) {
+            #TODO check if the node already exists using the uuid
             Write-Host "Creating new $ContentType : $($Resource | ConvertTo-Json -Compress -Depth 10)"
             Invoke-RestMethod -Method POST -Uri "$SiteURL/node?_format=json" -Body ($Resource | ConvertTo-Json -Depth 10) -Headers $Headers
         }
